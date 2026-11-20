@@ -16,9 +16,17 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-      - run: unzip -q VoyYaNegocio-proyecto-android.zip
-      - run: cd VoyYaNegocio && gradle assembleDebug --no-daemon
+      - name: Preparar proyecto
+        run: |
+          ls -la
+          Z=$(ls *.zip 2>/dev/null | head -1)
+          if [ -n "$Z" ]; then unzip -q "$Z"; fi
+          S=$(find . -name settings.gradle | head -1)
+          if [ -z "$S" ]; then echo "NO ENCONTRE EL PROYECTO: sube el zip a la raiz del repositorio"; exit 1; fi
+          echo "PROYECTO=$(dirname "$S")" >> "$GITHUB_ENV"
+      - name: Compilar
+        run: cd "$PROYECTO" && gradle assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: VoyYa-Negocio-APK
-          path: VoyYaNegocio/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.PROYECTO }}/app/build/outputs/apk/debug/app-debug.apk
