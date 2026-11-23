@@ -14,18 +14,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Localizar raíz del proyecto Gradle
-        id: find_project
+      - name: Preparar proyecto desde ZIP o carpeta
+        id: prep_project
         run: |
-          PROJECT_FILE=$(find . -maxdepth 3 -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1)
+          if [ ! -f "settings.gradle" ] && [ ! -f "settings.gradle.kts" ]; then
+            ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+            if [ -n "$ZIP_FILE" ]; then
+              mkdir -p /tmp/voyya_src
+              unzip -q "$ZIP_FILE" -d /tmp/voyya_src
+              PROJECT_FILE=$(find /tmp/voyya_src -maxdepth 3 -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1)
+            else
+              PROJECT_FILE=$(find . -maxdepth 3 -name "settings.gradle" -o -name "settings.gradle.kts" | head -n 1)
+            fi
+          else
+            PROJECT_FILE="./settings.gradle"
+          fi
+
           if [ -z "$PROJECT_FILE" ]; then
-            echo "ERROR: No se encontró settings.gradle en el repositorio."
+            echo "ERROR: No se encontró settings.gradle ni archivo .zip del proyecto."
             ls -la
             exit 1
           fi
+
           PROJECT_DIR=$(dirname "$PROJECT_FILE")
           echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
-          echo "Proyecto encontrado en: $PROJECT_DIR"
+          echo "Proyecto listo en: $PROJECT_DIR"
 
       - uses: actions/setup-java@v4
         with:
@@ -44,10 +57,15 @@ jobs:
           gradle-version: '8.9'
 
       - name: Compilar APK firmado
-        working-directory: ${{ steps.find_project.outputs.project_dir }}
+        working-directory: ${{ steps.prep_project.outputs.project_dir }}
         run: gradle assembleRelease --no-daemon
+
+      - name: Copiar APK a ruta conocida
+        run: |
+          mkdir -p /tmp/apk_out
+          cp ${{ steps.prep_project.outputs.project_dir }}/app/build/outputs/apk/release/*.apk /tmp/apk_out/
 
       - uses: actions/upload-artifact@v4
         with:
           name: VoyYa-Negocio-APK
-          path: ${{ steps.find_project.outputs.project_dir }}/app/build/outputs/apk/release/*.apk
+          path: /tmp/apk_out/*.apk
