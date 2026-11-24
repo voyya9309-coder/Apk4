@@ -48,6 +48,12 @@ jobs:
               id 'com.android.application'
           }
 
+          def verNum = {
+              def raw = project.hasProperty('vCode') ? project.property('vCode') : (project.hasProperty('vcCode') ? project.property('vcCode') : null)
+              def digits = raw == null ? '' : raw.toString().replaceAll('\\D', '')
+              return digits.isEmpty() ? 1 : digits.toInteger()
+          }()
+
           android {
               namespace 'com.voyya.negocio'
               compileSdk 34
@@ -56,8 +62,8 @@ jobs:
                   applicationId "com.voyya.negocio"
                   minSdk 24
                   targetSdk 34
-                  versionCode (project.findProperty('vCode') ?: '1').toInteger()
-                  versionName "2.0." + (project.findProperty('vCode') ?: '1')
+                  versionCode verNum
+                  versionName "2.0." + verNum
               }
 
               signingConfigs {
