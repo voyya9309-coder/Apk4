@@ -1,0 +1,60 @@
+name: Compilar APK Negocio
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Si subiste el proyecto como un solo .zip (desde el móvil), aquí se descomprime solo
+      - name: Descomprimir el proyecto
+        run: |
+          if [ -f VoyYa-Negocio-APK-proyecto.zip ]; then unzip -q -o VoyYa-Negocio-APK-proyecto.zip; fi
+          ls
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # La app abre mucho más rápido si las librerías y los estilos viajan dentro de la APK.
+      # Si este paso falla por cualquier motivo, la APK se compila igual (carga desde internet).
+      - name: Preparar archivos locales (carga rápida)
+        continue-on-error: true
+        run: |
+          set -e
+          A=app/src/main/assets
+          curl -fsSL -o $A/supabase.js https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.58.0/dist/umd/supabase.min.js
+          curl -fsSL -o $A/lucide.js https://cdn.jsdelivr.net/npm/lucide@0.460.0/dist/umd/lucide.min.js
+          curl -fsSL -o $A/leaflet.js https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js
+          curl -fsSL -o $A/leaflet.css https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css
+          npm install --no-save --no-audit --no-fund tailwindcss@3.4.17
+          echo '@tailwind base;@tailwind components;@tailwind utilities;' > /tmp/in.css
+          npx tailwindcss -c tailwind.config.js -i /tmp/in.css -o $A/tw.css --minify
+          python3 scripts/offline.py
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compilar APK firmado
+        run: gradle assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoyYa-Negocio-APK
+          path: app/build/outputs/apk/release/*.apk
