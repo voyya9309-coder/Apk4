@@ -12,7 +12,6 @@ jobs:
   compilar:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-
     steps:
       - name: Descargar repositorio
         uses: actions/checkout@v4
@@ -25,6 +24,23 @@ jobs:
 
       - name: Preparar Android
         uses: android-actions/setup-android@v3
+        with:
+          accept-android-sdk-licenses: true
+
+      - name: Aceptar todas las licencias del SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          for sdk_dir in "${ANDROID_HOME:-}" "${ANDROID_SDK_ROOT:-}" "/usr/local/lib/android/sdk"; do
+            if [ -n "$sdk_dir" ] && [ -d "$sdk_dir/licenses" ]; then
+              for sm in "$sdk_dir"/cmdline-tools/*/bin/sdkmanager "$sdk_dir"/cmdline-tools/latest/bin/sdkmanager; do
+                if [ -x "$sm" ]; then
+                  yes | "$sm" --sdk_root="$sdk_dir" --licenses >/dev/null 2>&1 || true
+                fi
+              done
+            fi
+          done
 
       - name: Preparar Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -35,25 +51,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
           ZIP="$GITHUB_WORKSPACE/VoyYa-Negocios-GitHub.zip"
-
           if [ ! -f "$ZIP" ]; then
             echo "::error::Sube VoyYa-Negocios-GitHub.zip a la raiz del repositorio, sin descomprimir."
             exit 1
           fi
-
           DEST="$RUNNER_TEMP/voyya-negocios"
           mkdir -p "$DEST"
           unzip -q "$ZIP" -d "$DEST"
-
           SETTINGS=$(find "$DEST" -type f -name settings.gradle -print -quit)
-
           if [ -z "$SETTINGS" ]; then
             echo "::error::El ZIP no contiene settings.gradle. Usa el ZIP del proyecto Android."
             exit 1
           fi
-
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
 
       - name: Compilar APK
